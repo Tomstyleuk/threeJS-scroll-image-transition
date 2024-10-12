@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <link rel="stylesheet" href="style.css">
+    <!-- REF => https://dev.shoya-kajita.com/027/ -->
+</head>
+
+<body>
+    <section class="intro_container">
+        <p>Three.js and shader experiment. <br> You will see a cool image transition effect.<br> Let's start scrolling
+            down.
+        </p>
+        <h1 class="title">AVTAXV</h1>
+        <p class="uppercase">scroll down</p>
+    </section>
+    <div class="container">
+        <div class="sticky-container">
+            <canvas id="webgl"></canvas>
+        </div>
+        <div class="sections_wrapper">
+            <section class="section" id="section1">
+                <div class="inner_section">
+                    <div class="title_wrapper">
+                        <h2>The best view at the Garda see</h2>
+                        <p>ガルダ湖で絶景の景色</p>
+                    </div>
+                    <div class="intro_wrapper">
+                        <p>This is the hidden place where only local people go to escape from tourists on the weekend.
+                        </p>
+                    </div>
+                </div>
+            </section>
+            <section class="section" id="section2">
+                <div class="inner_section">
+                    <div class="title_wrapper">
+                        <h2>The view from <br>a old Jail from 1800s</h2>
+                        <p>最古の牢屋から見るオーシャンビュー</p>
+                    </div>
+                    <div class="intro_wrapper">
+                        <p>You can see the ocean view from the oldest jail from 1800s.</p>
+                    </div>
+                </div>
+            </section>
+            <section class="section" id="section3">
+                <div class="inner_section">
+                    <div class="title_wrapper">
+                        <h2>The best <br> night life <br> in Soul</h2>
+                        <p>ソウルの夜を楽しむなら、この通りを行けば間違いない</p>
+                    </div>
+                    <div class="intro_wrapper">
+                        <p>if you enjoy the night life in Soul, this is the best street you should definitly go to.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+    <footer>
+        <h2>Footer</h2>
+        <p>How was your experience so far? <br>Let's explore <a href="https://webgl-blog.netlify.app/about/"
+                target="_blank" title="WebGL Blog">more interactive animations</a></p>
+    </footer>
+
+    <!-- Vertex Shader -->
+    <script id="vertexShader" type="x-shader/x-vertex">
+            varying vec2 vUv;
+
+            void main() {
+                vUv = uv;
+                gl_Position = vec4(position, 1.0);
+            }
+    </script>
+
+    <!-- Fragment Shader - RGB shift and wave effect -->
+    <script id="fragmentShader" type="x-shader/x-fragment">
+            uniform float uProgress;
+            uniform vec2 uResolution;
+            uniform vec2 texResolution;
+            uniform sampler2D uTexture1;
+            uniform sampler2D uTexture2;
+            uniform sampler2D uTexture3;
+            varying vec2 vUv;
+
+            vec2 calculateUV(vec2 uv) {
+                // キャンバスとテクスチャのアスペクト比を計算
+                float canvasAspect = uResolution.x / uResolution.y;
+                float textureAspect = texResolution.x / texResolution.y;
+
+                // (キャンバスの縦横比の逆数) / (テクスチャの縦横比の逆数) を計算（高さを幅で割ることで、縦横を入れ替えた比率を計算）
+                float canvasInverseAspect = uResolution.y / uResolution.x;
+                float textureInverseAspect = texResolution.y / texResolution.x;
+
+                // min関数を使用して、テクスチャが常にキャンバス全体をカバーするために必要なスケーリング比率を計算
+                float ratioX = min(canvasAspect / textureAspect, 1.0);
+                float ratioY = min(canvasInverseAspect / textureInverseAspect, 1.0);
+
+
+                // UV座標を調整
+                // 1. XとYにスケーリングを適用 - uv.x * ratioX, uv.y * ratioY
+                // 2. スケーリングされたテクスチャをキャンバスの中央に配置する -(1.0 - ratioX) * 0.5, (1.0 - ratioY) * 0.5
+                // 2で、テクスチャが中央に配置されて、縦横比を維持しつつキャンバス全体をカバーする
+                return vec2(
+                    uv.x * ratioX + (1.0 - ratioX) * 0.5,
+                    uv.y * ratioY + (1.0 - ratioY) * 0.5
+                );
+            }
+
+            void main() {
+                vec2 uv = vUv;
+                vec2 adjustedUV = calculateUV(uv);
+
+                // Distortion effect
+                float wave = sin(adjustedUV.x * 10.0 + uProgress * 10.0) * 0.02;
+                adjustedUV.x += wave * smoothstep(0.0, 0.3, fract(uProgress)) * (1.0 - smoothstep(0.7, 1.0, fract(uProgress)));
+
+                // テクスチャのサンプリング
+                vec4 tex1 = texture2D(uTexture1, adjustedUV);
+                vec4 tex2 = texture2D(uTexture2, adjustedUV);
+                vec4 tex3 = texture2D(uTexture3, adjustedUV);
+
+                // RGBチャンネルの個別のミックス
+                vec3 color;
+
+                // 0 ≤ uProgress < 1: 画像1から画像2へ遷移
+                // 1 ≤ uProgress < 2: 画像2から画像3へ遷移
+                // uProgress ≥ 2: 画像3を固定表示
+                if (uProgress < 1.0) {
+                    // Transition from tex1 to tex2
+                    float progress = uProgress;
+
+                    color.r = mix(tex1.r, tex2.r, smoothstep(0.0, 0.6, progress));
+                    color.g = mix(tex1.g, tex2.g, smoothstep(0.2, 0.8, progress));
+                    color.b = mix(tex1.b, tex2.b, smoothstep(0.4, 1.0, progress));
+                } else if (uProgress < 2.0) {
+                    // Transition from tex2 to tex3
+                    float progress = uProgress - 1.0;
+
+                    color.r = mix(tex2.r, tex3.r, smoothstep(0.0, 0.6, progress));
+                    color.g = mix(tex2.g, tex3.g, smoothstep(0.2, 0.8, progress));
+                    color.b = mix(tex2.b, tex3.b, smoothstep(0.4, 1.0, progress));
+                } else {
+                    // Keep tex3 when uProgress >= 2.0
+                    color = tex3.rgb;
+                }
+
+                // アルファ値の計算
+                float alpha = 1.0;  // または必要に応じて調整
+
+                gl_FragColor = vec4(color, alpha);
+            }
+    </script>
+
+    <!-- Ripple effect -->
+    <!-- <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform float uProgress;
+        uniform vec2 uResolution;
+        uniform vec2 texResolution;
+        uniform sampler2D uTexture1;
+        uniform sampler2D uTexture2;
+        uniform sampler2D uTexture3;
+        varying vec2 vUv;
+
+        vec2 calculateUV(vec2 uv) {
+            float canvasAspect = uResolution.x / uResolution.y;
+            float textureAspect = texResolution.x / texResolution.y;
+            float canvasInverseAspect = uResolution.y / uResolution.x;
+            float textureInverseAspect = texResolution.y / texResolution.x;
+            float ratioX = min(canvasAspect / textureAspect, 1.0);
+            float ratioY = min(canvasInverseAspect / textureInverseAspect, 1.0);
+            return vec2(
+                uv.x * ratioX + (1.0 - ratioX) * 0.5,
+                uv.y * ratioY + (1.0 - ratioY) * 0.5
+            );
+        }
+
+        void main() {
+            vec2 uv = vUv;
+            vec2 adjustedUV = calculateUV(uv);
+
+            // Ripple effect parameters
+            float rippleSpeed = 1.0;
+            float rippleFrequency = 10.0;
+            float rippleAmplitude = 0.02;
+
+            // Calculate progress (0 to 1)
+            float progress = mod(uProgress, 1.0);
+
+            // Calculate distance from center
+            vec2 center = vec2(0.5, 0.5);
+            float dist = distance(adjustedUV, center);
+
+            // Calculate ripple effect
+            float ripple = sin((dist - progress) * rippleFrequency - uProgress * rippleSpeed) * rippleAmplitude;
+            ripple *= smoothstep(0.0, 0.5, dist) * (1.0 - progress);
+
+            // Increase ripple amplitude towards the edges
+            ripple *= 1.0 + dist * 2.0;
+
+            // Apply ripple to UV coordinates
+            vec2 rippleUV = adjustedUV + normalize(adjustedUV - center) * ripple;
+
+            // Determine which textures to blend based on uProgress
+            vec4 tex1, tex2;
+            if (uProgress < 1.0) {
+                tex1 = texture2D(uTexture1, rippleUV);
+                tex2 = texture2D(uTexture2, adjustedUV);
+            } else if (uProgress < 2.0) {
+                tex1 = texture2D(uTexture2, rippleUV);
+                tex2 = texture2D(uTexture3, adjustedUV);
+            } else {
+                tex1 = tex2 = texture2D(uTexture3, adjustedUV);
+            }
+
+            // Mix textures based on the ripple transition
+            float mixFactor = smoothstep(0.0, 0.9, progress - (1.0 - adjustedUV.y));
+            vec4 finalColor = mix(tex1, tex2, mixFactor);
+
+            gl_FragColor = finalColor;
+        }
+    </script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/ScrollTrigger.min.js"></script>
+    <script src="script.js" type="module"></script>
+</body>
+
+</html>
